@@ -1,0 +1,46 @@
+[package]
+name = "rusty-ai-voice"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusty-ai-common = { path = "../common" }
+
+# Async Runtime
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error Handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging & Tracing
+tracing = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+
+# HTTP Client for external APIs
+reqwest = { workspace = true }
+
+# Audio processing
+rodio = "0.17"
+hound = "3.5"
+cpal = "0.15"
+
+# Base64 encoding/decoding
+base64 = "0.21"
+
+# Configuration
+config = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+mockall = { workspace = true }

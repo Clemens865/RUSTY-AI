@@ -1,0 +1,57 @@
+[package]
+name = "rusty-ai-plugins"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# WebAssembly Runtime
+wasmtime = { version = "26.0", features = ["component-model", "async"] }
+wasmtime-wasi = "26.0"
+
+# Workspace dependencies
+rusty-ai-common = { path = "../common" }
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+bytes = { workspace = true }
+
+# Security and sandboxing
+sha2 = "0.10"
+hex = "0.4"
+
+# Configuration
+config = { workspace = true }
+
+# File system operations
+tempfile = "3.8"
+directories = "5.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+
+[features]
+default = ["security", "resource-limits"]
+security = []
+resource-limits = []
+component-model = ["wasmtime/component-model"]

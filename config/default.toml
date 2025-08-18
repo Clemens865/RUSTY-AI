@@ -1,0 +1,220 @@
+# Personal AI Assistant Default Configuration
+# This file contains the default settings for the application
+
+[server]
+host = "localhost"
+port = 8080
+environment = "development"
+max_concurrent_connections = 1000
+keep_alive_timeout_seconds = 60
+request_timeout_seconds = 30
+enable_compression = true
+enable_caching = true
+
+[database]
+url = "sqlite:./data/rusty_ai.db"
+max_connections = 20
+min_connections = 5
+connect_timeout_seconds = 30
+max_lifetime_seconds = 3600
+idle_timeout_seconds = 600
+auto_migrate = true
+enable_foreign_keys = true
+enable_wal_mode = true
+synchronous_mode = "normal"
+
+[security]
+jwt_expiration_hours = 24
+bcrypt_cost = 12
+session_timeout_hours = 168
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 60
+rate_limit_burst_size = 10
+
+[cors]
+allowed_origins = ["http://localhost:3000", "http://localhost:5173"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allowed_headers = ["Content-Type", "Authorization", "X-Requested-With"]
+allow_credentials = true
+
+[ai_services]
+default_provider = "openai"
+max_tokens = 4096
+temperature = 0.7
+timeout_seconds = 30
+
+[ai_services.openai]
+model = "gpt-4"
+max_tokens = 4096
+temperature = 0.7
+
+[ai_services.anthropic]
+model = "claude-3-sonnet-20240229"
+max_tokens = 4096
+
+[ai_services.google]
+model = "gemini-pro"
+max_tokens = 4096
+
+[vector_database]
+host = "localhost"
+port = 6333
+collection_name = "rusty_ai_embeddings"
+vector_size = 1536
+timeout_seconds = 10
+
+[redis]
+url = "redis://localhost:6379"
+db = 0
+max_connections = 10
+connect_timeout_seconds = 5
+command_timeout_seconds = 1
+
+[storage]
+type = "local"
+path = "./data/uploads"
+max_file_size_mb = 100
+allowed_extensions = [
+    "txt", "md", "pdf", "docx", "xlsx", "pptx",
+    "jpg", "jpeg", "png", "gif", "svg",
+    "mp3", "wav", "m4a", "ogg",
+    "mp4", "avi", "mov", "webm"
+]
+
+[plugins]
+directory = "./plugins"
+auto_load = true
+enable_security_sandbox = true
+max_memory_mb = 64
+max_execution_time_seconds = 30
+max_cpu_time_seconds = 10
+max_fuel = 1000000
+max_concurrent_executions = 10
+
+[plugins.security]
+disable_dangerous_features = true
+require_signature = false
+max_file_descriptors = 5
+max_network_connections = 2
+
+[voice]
+enabled = true
+stt_service = "whisper"
+tts_service = "azure"
+
+[voice.whisper]
+model = "base"
+language = "en"
+task = "transcribe"
+
+[voice.azure]
+voice_name = "en-US-AriaNeural"
+rate = "0%"
+pitch = "0%"
+
+[voice.vad]
+enabled = true
+silence_threshold = 0.01
+speech_pad_ms = 300
+silence_duration_ms = 1000
+
+[email]
+enabled = false
+host = "smtp.gmail.com"
+port = 587
+use_tls = true
+timeout_seconds = 30
+
+[logging]
+level = "info"
+format = "json"
+max_file_size_mb = 100
+max_files = 10
+compress_rotated = true
+
+[logging.file]
+enabled = true
+path = "./logs/rusty_ai.log"
+
+[logging.console]
+enabled = true
+pretty = true
+
+[metrics]
+enabled = true
+port = 9090
+namespace = "rusty_ai"
+health_check_interval_seconds = 30
+
+[scheduler]
+enabled = true
+max_workers = 5
+cleanup_interval_hours = 24
+max_job_runtime_seconds = 3600
+
+[features]
+voice_enabled = true
+plugins_enabled = true
+knowledge_graph_enabled = true
+briefings_enabled = true
+analytics_enabled = true
+collaboration_enabled = false
+real_time_sync_enabled = true
+
+[backup]
+enabled = true
+interval_hours = 24
+retention_days = 30
+directory = "./backups"
+compress = true
+include_uploads = false
+
+[cache]
+ttl_seconds = 3600
+max_size_mb = 512
+cleanup_interval_seconds = 300
+
+[api]
+rate_limit_requests_per_hour = 1000
+rate_limit_concurrent_requests = 10
+enable_swagger = true
+enable_metrics_endpoint = true
+
+[webhooks]
+timeout_seconds = 10
+max_retries = 3
+retry_delay_seconds = 1
+
+[integrations]
+enabled_services = []
+
+[integrations.google]
+enabled = false
+scopes = ["https://www.googleapis.com/auth/calendar.readonly"]
+
+[integrations.microsoft]
+enabled = false
+scopes = ["https://graph.microsoft.com/calendars.read"]
+
+[integrations.slack]
+enabled = false
+scopes = ["chat:write", "channels:read"]
+
+[development]
+debug = false
+test_mode = false
+mock_ai_responses = false
+hot_reload = true
+enable_playground = true
+
+[performance]
+worker_threads = 0  # 0 means use CPU count
+blocking_threads = 512
+max_blocking_threads = 10000
+thread_keep_alive_seconds = 10
+
+[monitoring]
+enable_tracing = true
+enable_metrics = true
+sampling_rate = 0.1
+export_timeout_seconds = 30

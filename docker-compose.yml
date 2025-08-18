@@ -1,0 +1,346 @@
+version: '3.8'
+
+services:
+  # ================================
+  # Main Application Services
+  # ================================
+  
+  # Rust Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rusty-ai-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "9090:9090"  # Metrics port
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://rusty_ai:password@postgres:5432/rusty_ai_dev
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - LOG_LEVEL=debug
+    volumes:
+      - ./data:/app/data
+      - ./plugins:/app/plugins
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks:
+      - rusty-ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: rusty-ai-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_WS_URL=ws://localhost:8080/ws
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - rusty-ai-network
+
+  # ================================
+  # Database Services
+  # ================================
+  
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rusty-ai-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: rusty_ai_dev
+      POSTGRES_USER: rusty_ai
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - rusty-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rusty_ai -d rusty_ai_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: rusty-ai-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - rusty-ai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ================================
+  # Vector Database
+  # ================================
+  
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    container_name: rusty-ai-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"  # GRPC port
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - rusty-ai-network
+
+  # ================================
+  # Monitoring & Observability
+  # ================================
+  
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: rusty-ai-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+    networks:
+      - rusty-ai-network
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: rusty-ai-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - rusty-ai-network
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.47
+    container_name: rusty-ai-jaeger
+    restart: unless-stopped
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+    networks:
+      - rusty-ai-network
+
+  # ================================
+  # Development Tools
+  # ================================
+  
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:7
+    container_name: rusty-ai-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@rusty-ai.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - rusty-ai-network
+    profiles:
+      - dev-tools
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: rusty-ai-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - rusty-ai-network
+    profiles:
+      - dev-tools
+
+  # ================================
+  # Backup Services
+  # ================================
+  
+  # Database backup service
+  db-backup:
+    image: postgres:15-alpine
+    container_name: rusty-ai-db-backup
+    restart: "no"
+    environment:
+      PGPASSWORD: password
+    volumes:
+      - ./backups:/backups
+    command: >
+      sh -c "
+        while true; do
+          echo 'Creating database backup...'
+          pg_dump -h postgres -U rusty_ai -d rusty_ai_dev > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+          echo 'Backup completed'
+          sleep 86400
+        done
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rusty-ai-network
+    profiles:
+      - backup
+
+  # ================================
+  # Load Balancer (for production)
+  # ================================
+  
+  # Nginx reverse proxy and load balancer
+  nginx:
+    image: nginx:alpine
+    container_name: rusty-ai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - rusty-ai-network
+    profiles:
+      - production
+
+# ================================
+# Networks
+# ================================
+networks:
+  rusty-ai-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# ================================
+# Development Commands
+# ================================
+# To start core services:
+#   docker-compose up -d
+#
+# To start with development tools:
+#   docker-compose --profile dev-tools up -d
+#
+# To start with backup services:
+#   docker-compose --profile backup up -d
+#
+# To start production setup:
+#   docker-compose --profile production up -d
+#
+# To view logs:
+#   docker-compose logs -f [service_name]
+#
+# To scale the API:
+#   docker-compose up -d --scale api=3
+#
+# To rebuild and start:
+#   docker-compose up -d --build
+#
+# To stop and remove everything:
+#   docker-compose down -v

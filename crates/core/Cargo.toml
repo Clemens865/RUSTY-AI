@@ -1,0 +1,23 @@
+[package]
+name = "rusty-ai-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusty-ai-common = { path = "../common" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+futures = { workspace = true }
+regex = "1.10"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+mockall = { workspace = true }

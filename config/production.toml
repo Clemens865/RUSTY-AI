@@ -1,0 +1,247 @@
+# Personal AI Assistant Production Configuration
+# This file contains production-specific overrides for the default configuration
+
+[server]
+host = "0.0.0.0"
+port = 8080
+environment = "production"
+max_concurrent_connections = 5000
+keep_alive_timeout_seconds = 75
+request_timeout_seconds = 60
+enable_compression = true
+enable_caching = true
+
+[database]
+# Production database should be PostgreSQL
+url = "postgresql://username:password@localhost:5432/rusty_ai_prod"
+max_connections = 50
+min_connections = 10
+connect_timeout_seconds = 60
+max_lifetime_seconds = 1800  # 30 minutes
+idle_timeout_seconds = 300   # 5 minutes
+auto_migrate = false  # Migrations should be run manually in production
+ssl_mode = "require"
+
+[security]
+jwt_expiration_hours = 8  # Shorter sessions in production
+bcrypt_cost = 14  # Higher cost for better security
+session_timeout_hours = 24
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 30  # More restrictive
+rate_limit_burst_size = 5
+
+[cors]
+# Restrict CORS to known production domains
+allowed_origins = ["https://yourdomain.com", "https://app.yourdomain.com"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE"]
+allowed_headers = ["Content-Type", "Authorization"]
+allow_credentials = true
+
+[ai_services]
+default_provider = "openai"
+max_tokens = 2048  # Reduce costs
+temperature = 0.5
+timeout_seconds = 60
+
+[ai_services.openai]
+model = "gpt-4"
+max_tokens = 2048
+temperature = 0.5
+
+[vector_database]
+host = "your-qdrant-host"
+port = 6333
+collection_name = "rusty_ai_embeddings_prod"
+vector_size = 1536
+timeout_seconds = 30
+
+[redis]
+url = "redis://your-redis-host:6379"
+db = 0
+max_connections = 50
+connect_timeout_seconds = 10
+command_timeout_seconds = 5
+
+[storage]
+type = "s3"
+max_file_size_mb = 50  # Smaller limit in production
+allowed_extensions = [
+    "txt", "md", "pdf", "docx", "xlsx",
+    "jpg", "jpeg", "png",
+    "mp3", "wav", "m4a"
+]
+
+[storage.s3]
+region = "us-east-1"
+bucket = "your-production-bucket"
+prefix = "rusty-ai/"
+
+[plugins]
+directory = "/opt/rusty-ai/plugins"
+auto_load = false  # Manual loading in production
+enable_security_sandbox = true
+max_memory_mb = 32  # Stricter limits
+max_execution_time_seconds = 15
+max_cpu_time_seconds = 5
+max_fuel = 500000
+max_concurrent_executions = 5
+
+[plugins.security]
+disable_dangerous_features = true
+require_signature = true  # Require signed plugins in production
+max_file_descriptors = 3
+max_network_connections = 1
+
+[voice]
+enabled = true
+stt_service = "azure"  # More reliable for production
+tts_service = "azure"
+
+[voice.azure]
+voice_name = "en-US-AriaNeural"
+rate = "0%"
+pitch = "0%"
+
+[email]
+enabled = true
+host = "your-smtp-host"
+port = 587
+use_tls = true
+timeout_seconds = 60
+
+[logging]
+level = "warn"  # Less verbose in production
+format = "json"
+max_file_size_mb = 500
+max_files = 30
+compress_rotated = true
+
+[logging.file]
+enabled = true
+path = "/var/log/rusty-ai/rusty_ai.log"
+
+[logging.console]
+enabled = false  # Disable console logging in production
+pretty = false
+
+[metrics]
+enabled = true
+port = 9090
+namespace = "rusty_ai_prod"
+health_check_interval_seconds = 60
+
+[scheduler]
+enabled = true
+max_workers = 10
+cleanup_interval_hours = 12
+max_job_runtime_seconds = 1800  # 30 minutes
+
+[features]
+voice_enabled = true
+plugins_enabled = true
+knowledge_graph_enabled = true
+briefings_enabled = true
+analytics_enabled = true
+collaboration_enabled = true
+real_time_sync_enabled = true
+
+[backup]
+enabled = true
+interval_hours = 6  # More frequent backups
+retention_days = 90
+directory = "/var/backups/rusty-ai"
+compress = true
+include_uploads = true
+
+[cache]
+ttl_seconds = 7200  # Longer cache in production
+max_size_mb = 2048
+cleanup_interval_seconds = 600
+
+[api]
+rate_limit_requests_per_hour = 500  # Stricter limits
+rate_limit_concurrent_requests = 5
+enable_swagger = false  # Disable in production
+enable_metrics_endpoint = true
+
+[webhooks]
+timeout_seconds = 30
+max_retries = 5
+retry_delay_seconds = 2
+
+[integrations]
+enabled_services = ["google", "microsoft", "slack"]
+
+[integrations.google]
+enabled = true
+scopes = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+
+[integrations.microsoft]
+enabled = true
+scopes = [
+    "https://graph.microsoft.com/calendars.read",
+    "https://graph.microsoft.com/mail.read"
+]
+
+[integrations.slack]
+enabled = true
+scopes = ["chat:write", "channels:read", "users:read"]
+
+[development]
+debug = false
+test_mode = false
+mock_ai_responses = false
+hot_reload = false
+enable_playground = false
+
+[performance]
+worker_threads = 0  # Use all available CPU cores
+blocking_threads = 1024
+max_blocking_threads = 2048
+thread_keep_alive_seconds = 60
+
+[monitoring]
+enable_tracing = true
+enable_metrics = true
+sampling_rate = 0.01  # Lower sampling in production
+export_timeout_seconds = 60
+
+# Production-specific security settings
+[security.tls]
+enabled = true
+cert_file = "/etc/ssl/certs/rusty-ai.crt"
+key_file = "/etc/ssl/private/rusty-ai.key"
+min_version = "1.2"
+
+[security.headers]
+enable_hsts = true
+enable_csp = true
+enable_xss_protection = true
+enable_content_type_nosniff = true
+enable_frame_options = true
+
+# Production monitoring and alerting
+[alerting]
+enabled = true
+webhook_url = "https://hooks.slack.com/your-webhook-url"
+error_threshold = 10
+response_time_threshold_ms = 5000
+
+[alerting.rules]
+high_error_rate = true
+slow_response_times = true
+high_memory_usage = true
+high_cpu_usage = true
+database_connection_issues = true
+
+# Load balancing and scaling
+[scaling]
+enable_horizontal_scaling = true
+min_instances = 2
+max_instances = 10
+scale_up_threshold = 70  # CPU percentage
+scale_down_threshold = 30
+cooldown_minutes = 5
