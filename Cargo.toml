@@ -1,3 +1,22 @@
+[package]
+name = "rusty-ai"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal AI Assistant Team"]
+license = "MIT"
+repository = "https://github.com/Clemens865/RUSTY-AI"
+
+[[bin]]
+name = "rusty-ai-api"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+dotenv = "0.15"
+
 [workspace]
 members = [
     "crates/core",
@@ -22,7 +41,7 @@ tokio = { version = "1.35", features = ["full"] }
 tokio-stream = "0.1"
 
 # Web Framework
-axum = { version = "0.7", features = ["ws", "headers", "multipart"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 

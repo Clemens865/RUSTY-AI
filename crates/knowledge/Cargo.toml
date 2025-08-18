@@ -1,0 +1,29 @@
+[package]
+name = "rusty-ai-knowledge"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core dependencies
+rusty-ai-common = { path = "../common" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+# Database
+sqlx.workspace = true
+
+# Vector search
+qdrant-client = "1.7"
+
+# Document processing
+pdf-extract = "0.7"
+regex = "1.10"
