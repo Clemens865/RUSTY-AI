@@ -1,11 +1,22 @@
-# Personal AI Assistant
+# 🤖 RUSTY-AI: Personal AI Assistant
 
-A powerful, extensible AI assistant built with Rust and TypeScript, featuring voice interaction, plugin architecture, and comprehensive task management capabilities.
+A powerful, extensible AI assistant with integrated Rust backend and React frontend, featuring voice interaction, plugin architecture, and comprehensive task management capabilities.
+
+**Repository**: [github.com/Clemens865/RUSTY-AI](https://github.com/Clemens865/RUSTY-AI) | **Status**: 🟢 Active Development
 
 ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+
+## 📊 Current Status
+
+✅ **Backend**: Rust API server with modular architecture  
+✅ **Frontend**: React + TypeScript with Tailwind CSS (fully integrated)  
+✅ **Database**: SQLite/PostgreSQL with migrations  
+✅ **Voice**: STT/TTS pipeline ready for integration  
+✅ **Docker**: Complete containerization with docker-compose  
+✅ **Plugin System**: WebAssembly-based architecture  
 
 ## 🚀 Features
 
@@ -49,14 +60,18 @@ A powerful, extensible AI assistant built with Rust and TypeScript, featuring vo
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rusty-ai.git
-cd rusty-ai
+git clone https://github.com/Clemens865/RUSTY-AI.git
+cd RUSTY-AI
 
 # Run the setup script
 ./setup.sh
 
 # Start development environment
-make dev
+# Run backend on port 8081
+cargo run --bin rusty-ai-api
+
+# In another terminal, run frontend on port 5173
+cd frontend && npm run dev
 ```
 
 The setup script will:
