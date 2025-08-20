@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       // Proxy API requests to backend server
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: false, // Allow self-signed certificates in development
         configure: (proxy, _options) => {
@@ -32,21 +32,21 @@ export default defineConfig(({ mode }) => ({
       
       // Proxy authentication requests
       '/auth': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: false,
       },
       
       // Proxy health check requests
       '/health': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: false,
       },
       
       // Proxy WebSocket connections
       '/ws': {
-        target: process.env.VITE_WS_BASE_URL || 'ws://localhost:8080',
+        target: 'ws://localhost:8081',
         changeOrigin: true,
         ws: true, // Enable WebSocket proxying
         secure: false,

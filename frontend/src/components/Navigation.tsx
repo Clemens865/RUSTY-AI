@@ -1,15 +1,17 @@
-import { MessageCircle, Settings, History } from "lucide-react";
+import { Mic, MessageCircle, Settings, History, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface NavigationProps {
-  activeTab: "chat" | "settings" | "history";
-  onTabChange: (tab: "chat" | "settings" | "history") => void;
+  activeTab: "voice" | "chat" | "knowledge" | "settings" | "history";
+  onTabChange: (tab: "voice" | "chat" | "knowledge" | "settings" | "history") => void;
 }
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {
   const tabs = [
-    { id: "chat" as const, icon: MessageCircle, label: "Voice Chat" },
+    { id: "voice" as const, icon: Mic, label: "Voice Assistant" },
+    { id: "chat" as const, icon: MessageCircle, label: "Text Chat" },
+    { id: "knowledge" as const, icon: Brain, label: "Knowledge Base" },
     { id: "history" as const, icon: History, label: "History" },
     { id: "settings" as const, icon: Settings, label: "Settings" },
   ];
