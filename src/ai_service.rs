@@ -323,4 +323,21 @@ impl ConversationStore {
 
         Ok(session)
     }
+    
+    pub async fn get_recent_sessions(&self, limit: i32) -> Result<Vec<SessionRecord>> {
+        let sessions = sqlx::query_as::<_, SessionRecord>(
+            r#"
+            SELECT id, created_at, updated_at, metadata 
+            FROM sessions 
+            ORDER BY updated_at DESC 
+            LIMIT ?
+            "#,
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        
+        Ok(sessions)
+    }
+    
 }

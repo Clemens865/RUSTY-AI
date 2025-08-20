@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, Search, FileText, X, Tag, Brain } from "lucide-react";
+import { Upload, Search, FileText, X, Tag, Brain, Database, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,17 @@ interface SearchResult {
   source: string;
 }
 
+interface StoredDocument {
+  id: string;
+  title: string;
+  content: string;
+  chunk_index: number;
+  total_chunks: number;
+  source: string;
+  tags: string[];
+  created_at: string;
+}
+
 export function KnowledgeBase() {
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadContent, setUploadContent] = useState("");
@@ -28,6 +39,10 @@ export function KnowledgeBase() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  
+  const [storedDocuments, setStoredDocuments] = useState<StoredDocument[]>([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const [showDocuments, setShowDocuments] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +56,22 @@ export function KnowledgeBase() {
       }
     } catch (error) {
       console.error("Failed to fetch stats:", error);
+    }
+  };
+
+  // Fetch all stored documents
+  const fetchDocuments = async () => {
+    setIsLoadingDocuments(true);
+    try {
+      const response = await fetch('/api/v1/knowledge/documents');
+      if (response.ok) {
+        const data = await response.json();
+        setStoredDocuments(data.documents || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+    } finally {
+      setIsLoadingDocuments(false);
     }
   };
 
@@ -324,6 +355,82 @@ export function KnowledgeBase() {
           </div>
         </Card>
       </div>
+
+      {/* Stored Documents Section */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Stored Documents
+          </h3>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                setShowDocuments(!showDocuments);
+                if (!showDocuments && storedDocuments.length === 0) {
+                  fetchDocuments();
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              {showDocuments ? "Hide" : "Show"} Documents
+            </Button>
+            {showDocuments && (
+              <Button
+                onClick={fetchDocuments}
+                variant="outline"
+                size="sm"
+                disabled={isLoadingDocuments}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingDocuments ? 'animate-spin' : ''}`} />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {showDocuments && (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {isLoadingDocuments ? (
+              <p className="text-center text-muted-foreground py-4">Loading documents...</p>
+            ) : storedDocuments.length > 0 ? (
+              storedDocuments.map((doc, index) => (
+                <Card key={`${doc.id}_${index}`} className="p-4 bg-muted/30">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold text-sm">{doc.title}</h4>
+                    {doc.total_chunks > 1 && (
+                      <Badge variant="outline" className="text-xs">
+                        Chunk {doc.chunk_index + 1}/{doc.total_chunks}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                    {doc.content.substring(0, 200)}...
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
+                      {doc.source}
+                    </Badge>
+                    {doc.tags.map((tag, tagIndex) => (
+                      <Badge key={tagIndex} variant="outline" className="text-xs">
+                        <Tag className="h-3 w-3 mr-1" />
+                        {tag}
+                      </Badge>
+                    ))}
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {new Date(doc.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                No documents stored yet. Upload some documents to get started!
+              </p>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* Info Card */}
       <Card className="p-6 bg-muted/50">

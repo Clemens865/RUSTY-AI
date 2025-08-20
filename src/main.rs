@@ -15,9 +15,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod ai_service;
 mod voice_service;
 mod knowledge_service_simple;
+mod memory_service;
 use ai_service::{AIService, ConversationStore};
 use voice_service::VoiceService;
-use knowledge_service_simple::{KnowledgeService, upload_document_handler, search_documents_handler, knowledge_stats_handler};
+use knowledge_service_simple::{KnowledgeService, upload_document_handler, search_documents_handler, knowledge_stats_handler, list_documents_handler};
+use memory_service::MemoryService;
 
 // Request/Response structures
 #[derive(Debug, Deserialize)]
@@ -47,6 +49,7 @@ pub struct AppState {
     pub conversation_store: Arc<ConversationStore>,
     pub voice_service: Arc<VoiceService>,
     pub knowledge_service: Option<Arc<KnowledgeService>>,
+    pub memory_service: Option<Arc<MemoryService>>,
 }
 
 #[tokio::main]
@@ -90,12 +93,33 @@ async fn main() -> Result<()> {
         }
     };
     
+    // Initialize memory service (requires knowledge service)
+    let memory_service = match &knowledge_service {
+        Some(ks) => {
+            match MemoryService::new(None, Arc::clone(ks)) {
+                Ok(service) => {
+                    info!("Memory service initialized successfully");
+                    Some(Arc::new(service))
+                }
+                Err(e) => {
+                    error!("Failed to initialize memory service: {}", e);
+                    None
+                }
+            }
+        }
+        None => {
+            info!("Memory service disabled (requires knowledge service)");
+            None
+        }
+    };
+    
     // Create application state
     let state = Arc::new(AppState {
         ai_service: Arc::new(ai_service),
         conversation_store: Arc::new(conversation_store),
         voice_service: Arc::new(voice_service),
         knowledge_service,
+        memory_service,
     });
     
     // Build the router
@@ -108,6 +132,8 @@ async fn main() -> Result<()> {
         // API v1 routes
         .route("/api/v1/conversation/send", post(chat_handler))
         .route("/api/v1/conversation/history", get(get_history))
+        .route("/api/v1/conversation/sessions", get(get_sessions))
+        .route("/api/v1/conversation/session/:id", get(get_session_messages))
         
         // Voice endpoints
         .route("/api/v1/voice/transcribe", post(voice_service::transcribe_handler))
@@ -118,6 +144,7 @@ async fn main() -> Result<()> {
         .route("/api/v1/knowledge/upload", post(upload_document_handler))
         .route("/api/v1/knowledge/search", get(search_documents_handler))
         .route("/api/v1/knowledge/stats", get(knowledge_stats_handler))
+        .route("/api/v1/knowledge/documents", get(list_documents_handler))
         
         // WebSocket endpoint
         .route("/ws", get(websocket_handler))
@@ -188,31 +215,38 @@ async fn chat_handler(
     // Search knowledge base for relevant context (if available)
     let mut context = String::new();
     if let Some(ref knowledge_service) = state.knowledge_service {
+        // Search with lower threshold to find more matches
         if let Ok(search_results) = knowledge_service
-            .search_documents(&payload.message, 3, 0.3, None)
+            .search_documents(&payload.message, 5, 0.1, None)
             .await 
         {
             if !search_results.is_empty() {
                 context = format!(
-                    "\n\nRelevant information from knowledge base:\n{}",
+                    "\n\nRelevant information from your memory:\n{}",
                     search_results
                         .iter()
                         .map(|doc| format!("- {}: {}", doc.title, doc.content))
                         .collect::<Vec<_>>()
                         .join("\n")
                 );
-                debug!("Found {} relevant documents for context", search_results.len());
+                info!("Found {} relevant documents for context", search_results.len());
+            } else {
+                debug!("No relevant documents found for: {}", payload.message);
             }
+        } else {
+            debug!("Failed to search knowledge base");
         }
     }
     
     // Combine user message with context
     let enhanced_message = if !context.is_empty() {
-        format!("{}\n\nContext:{}\n\nPlease answer based on the provided context when relevant.", 
+        format!("User's question: {}\n\nIMPORTANT - Use this information from previous conversations:{}\n\nAnswer the user's question. If the context contains relevant information (like their name or preferences), use it in your response.", 
                 payload.message, context)
     } else {
         payload.message.clone()
     };
+    
+    debug!("Enhanced message with context: {}", enhanced_message);
     
     // Process message with AI service
     let response = match state.ai_service.process_message(&enhanced_message, &session_id).await {
@@ -224,7 +258,7 @@ async fn chat_handler(
     };
     
     // Save to database for persistence
-    if let Ok(store) = state.conversation_store.save_session(&ai_service::SessionRecord {
+    if let Ok(_) = state.conversation_store.save_session(&ai_service::SessionRecord {
         id: session_id.clone(),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -233,7 +267,7 @@ async fn chat_handler(
         // Session saved
     }
     
-    if let Ok(store) = state.conversation_store.save_message(&ai_service::MessageRecord {
+    if let Ok(_) = state.conversation_store.save_message(&ai_service::MessageRecord {
         id: uuid::Uuid::new_v4().to_string(),
         session_id: session_id.clone(),
         role: "user".to_string(),
@@ -243,7 +277,7 @@ async fn chat_handler(
         // User message saved
     }
     
-    if let Ok(store) = state.conversation_store.save_message(&ai_service::MessageRecord {
+    if let Ok(_) = state.conversation_store.save_message(&ai_service::MessageRecord {
         id: uuid::Uuid::new_v4().to_string(),
         session_id: session_id.clone(),
         role: "assistant".to_string(),
@@ -251,6 +285,34 @@ async fn chat_handler(
         created_at: chrono::Utc::now(),
     }).await {
         // Assistant response saved
+    }
+    
+    // Extract and store important information using memory service
+    if let Some(ref memory_service) = state.memory_service {
+        tokio::spawn({
+            let memory_service = Arc::clone(memory_service);
+            let session_id = session_id.clone();
+            let user_message = payload.message.clone();
+            let assistant_response = response.clone();
+            
+            async move {
+                match memory_service.process_conversation(
+                    &session_id,
+                    &user_message,
+                    &assistant_response
+                ).await {
+                    Ok(extracted) => {
+                        if !extracted.is_empty() {
+                            info!("Extracted {} pieces of information from conversation {}", 
+                                  extracted.len(), session_id);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to extract information from conversation: {}", e);
+                    }
+                }
+            }
+        });
     }
     
     info!("Sending AI response for session: {}", session_id);
@@ -273,6 +335,97 @@ async fn get_history(
         "history": [],
         "message": "History endpoint ready. Pass session_id as query parameter to get specific session history."
     }))
+}
+
+// Get all conversation sessions
+async fn get_sessions(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    match state.conversation_store.get_recent_sessions(20).await {
+        Ok(sessions) => {
+            // Get summaries for sessions if memory service is available
+            let sessions_with_info: Vec<serde_json::Value> = sessions
+                .into_iter()
+                .map(|session| {
+                    serde_json::json!({
+                        "id": session.id,
+                        "created_at": session.created_at,
+                        "updated_at": session.updated_at,
+                        "metadata": session.metadata,
+                    })
+                })
+                .collect();
+            
+            Json(serde_json::json!({
+                "sessions": sessions_with_info,
+                "total": sessions_with_info.len()
+            }))
+        }
+        Err(e) => {
+            error!("Failed to get sessions: {}", e);
+            Json(serde_json::json!({
+                "sessions": [],
+                "error": "Failed to retrieve sessions"
+            }))
+        }
+    }
+}
+
+// Get messages for a specific session
+async fn get_session_messages(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.conversation_store.get_session_messages(&session_id).await {
+        Ok(messages) => {
+            let messages_formatted: Vec<serde_json::Value> = messages
+                .into_iter()
+                .map(|msg| {
+                    serde_json::json!({
+                        "id": msg.id,
+                        "role": msg.role,
+                        "content": msg.content,
+                        "created_at": msg.created_at,
+                    })
+                })
+                .collect();
+            
+            // Get summary if memory service is available
+            let summary = if let Some(ref memory_service) = state.memory_service {
+                let msg_pairs: Vec<(String, String)> = messages_formatted
+                    .iter()
+                    .map(|m| {
+                        (
+                            m["role"].as_str().unwrap_or("").to_string(),
+                            m["content"].as_str().unwrap_or("").to_string()
+                        )
+                    })
+                    .collect();
+                
+                match memory_service.summarize_conversation(&msg_pairs).await {
+                    Ok(summary) => Some(summary),
+                    Err(_) => None
+                }
+            } else {
+                None
+            };
+            
+            Json(serde_json::json!({
+                "session_id": session_id,
+                "messages": messages_formatted,
+                "summary": summary,
+                "total": messages_formatted.len()
+            }))
+        }
+        Err(e) => {
+            error!("Failed to get messages for session {}: {}", session_id, e);
+            Json(serde_json::json!({
+                "session_id": session_id,
+                "messages": [],
+                "error": "Failed to retrieve messages"
+            }))
+        }
+    }
 }
 
 // WebSocket handler

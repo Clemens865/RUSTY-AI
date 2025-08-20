@@ -330,6 +330,76 @@ impl KnowledgeService {
             "indexed_vectors_count": collection_info.result.as_ref().and_then(|r| r.indexed_vectors_count).unwrap_or(0),
         }))
     }
+    
+    // List all documents in the knowledge base
+    pub async fn list_all_documents(&self) -> Result<Vec<Document>> {
+        use qdrant_client::qdrant::ScrollPointsBuilder;
+        
+        let scroll_points = ScrollPointsBuilder::new(&self.collection_name)
+            .limit(1000)
+            .with_payload(true)
+            .with_vectors(false)
+            .build();
+        
+        let scroll_result = self.qdrant_client
+            .scroll(scroll_points)
+            .await?;
+        
+        let documents: Vec<Document> = scroll_result
+            .result
+            .into_iter()
+            .map(|point| {
+                let payload = point.payload;
+                Document {
+                    id: payload.get("id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| String::new()),
+                    title: payload.get("title")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    content: payload.get("content")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| String::new()),
+                    chunk_index: payload.get("chunk_index")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as usize)
+                        .unwrap_or(0),
+                    total_chunks: payload.get("total_chunks")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as usize)
+                        .unwrap_or(1),
+                    source: payload.get("source")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    tags: payload.get("tags")
+                        .and_then(|v| {
+                            // Try to parse the JSON value as an array
+                            if let serde_json::Value::Array(arr) = serde_json::from_str(&v.to_string()).ok()? {
+                                Some(arr.iter()
+                                    .filter_map(|val| val.as_str())
+                                    .map(|s| s.to_string())
+                                    .collect())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default(),
+                    created_at: payload.get("created_at")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                        .map(|dt| dt.with_timezone(&chrono::Utc))
+                        .unwrap_or_else(chrono::Utc::now),
+                }
+            })
+            .collect();
+        
+        info!("Listed {} documents from knowledge base", documents.len());
+        Ok(documents)
+    }
 }
 
 // HTTP Handlers
@@ -441,6 +511,34 @@ pub async fn knowledge_stats_handler(
         Err(e) => {
             error!("Failed to get stats: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get statistics").into_response()
+        }
+    }
+}
+
+pub async fn list_documents_handler(
+    State(state): State<Arc<crate::AppState>>,
+) -> impl IntoResponse {
+    // Check if knowledge service is available
+    let knowledge_service = match &state.knowledge_service {
+        Some(service) => service,
+        None => {
+            return Json(serde_json::json!({
+                "documents": [],
+                "message": "Knowledge base service is not available"
+            })).into_response();
+        }
+    };
+    
+    match knowledge_service.list_all_documents().await {
+        Ok(documents) => {
+            Json(serde_json::json!({
+                "documents": documents,
+                "total": documents.len()
+            })).into_response()
+        }
+        Err(e) => {
+            error!("Failed to list documents: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list documents").into_response()
         }
     }
 }
